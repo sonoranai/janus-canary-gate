@@ -46,7 +46,6 @@ pub struct HealthResponse {
 #[derive(Debug, Deserialize)]
 pub struct PaginationParams {
     pub limit: Option<usize>,
-    pub offset: Option<usize>,
     pub deployment_id: Option<String>,
     pub verdict: Option<String>,
     pub since: Option<String>,

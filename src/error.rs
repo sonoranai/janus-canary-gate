@@ -18,15 +18,6 @@ pub enum Error {
     #[error("ingestion error: {0}")]
     Ingestion(String),
 
-    #[error("classification error: {0}")]
-    Classification(String),
-
-    #[error("behavior test error: {0}")]
-    Behavior(String),
-
-    #[error("recommendation error: {0}")]
-    Recommendation(String),
-
     #[error("metrics error: {0}")]
     Metrics(String),
 

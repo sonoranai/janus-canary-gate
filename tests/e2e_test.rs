@@ -108,3 +108,43 @@ fn e2e_exit_codes() {
     assert_eq!(hold.exit_code(), 1);
     assert_eq!(rollback.exit_code(), 2);
 }
+
+#[test]
+fn verdict_from_tracker_zero_cycles() {
+    let tracker = CycleTracker::new();
+    let verdict = Verdict::from_tracker(&tracker);
+
+    assert_eq!(verdict.recommendation, Recommendation::Hold);
+    assert_eq!(verdict.total_cycles, 0);
+    assert_eq!(verdict.consecutive_passes, 0);
+    assert!(verdict.test_results.is_empty());
+    assert!(verdict
+        .reasoning
+        .iter()
+        .any(|r| r.contains("No evaluation cycles")));
+}
+
+#[test]
+fn verdict_format_table_empty_results() {
+    let verdict = Verdict {
+        recommendation: Recommendation::Hold,
+        total_cycles: 0,
+        consecutive_passes: 0,
+        test_results: vec![],
+        reasoning: vec![],
+    };
+    let table = verdict.format_table();
+
+    assert!(table.contains("RECOMMEND_HOLD"));
+    assert!(table.contains("Cycles: 0"));
+    // Should not contain test results or reasoning sections when empty
+    assert!(!table.contains("Test Results"));
+    assert!(!table.contains("Reasoning"));
+}
+
+#[test]
+fn recommendation_display_format() {
+    assert_eq!(Recommendation::Promote.to_string(), "RECOMMEND_PROMOTE");
+    assert_eq!(Recommendation::Hold.to_string(), "RECOMMEND_HOLD");
+    assert_eq!(Recommendation::Rollback.to_string(), "RECOMMEND_ROLLBACK");
+}
