@@ -31,35 +31,84 @@ without replacing anything.
 
 ### How
 
-It's a command-line tool. The exit code is the verdict.
+canary-gate follows the Unix philosophy: do one thing, use exit codes,
+produce structured output, compose with other tools. The best deploy
+tooling isn't a platform -- it's a pipeline of small tools that each
+do their job and get out of the way.
 
-```bash
-canary-gate evaluate --config deploy/canary.yaml --log /var/log/myapp.log
-echo $?   # 0=promote  1=hold  2=rollback
+The interface is simple. Feed it a config and a log file. It exits
+with a code.
+
+```
+canary-gate evaluate -c canary.yaml -l app.log
+echo $?
+
+  0   promote
+  1   hold
+  2   rollback
 ```
 
-That means it composes the way Unix tools should:
+Exit codes are the original API. They work with everything:
 
 ```bash
-# Gate a deploy script on canary health
-canary-gate evaluate -c canary.yaml -l app.log && kubectl promote deploy/myapp
+# Gate a deploy on canary health -- promote only if healthy
+canary-gate evaluate -c canary.yaml -l app.log \
+  && kubectl set image deploy/myapp app=myapp:v2
 
-# Pipe JSON output into jq for downstream tooling
-canary-gate evaluate -c canary.yaml -l app.log -f json | jq '.recommendation'
+# Roll back on failure
+canary-gate evaluate -c canary.yaml -l app.log \
+  || kubectl rollout undo deploy/myapp
+```
 
-# Run it in a loop from a systemd timer or cron
-while canary-gate evaluate -c canary.yaml -l app.log; [ $? -eq 1 ]; do
-    sleep 30
+JSON output pipes into whatever you need downstream:
+
+```bash
+# Extract just the recommendation
+canary-gate evaluate -c canary.yaml -l app.log -f json \
+  | jq -r '.recommendation'
+
+# Feed the full verdict into a notification
+canary-gate evaluate -c canary.yaml -l app.log -f json \
+  | jq '{text: .recommendation, details: .reasoning}' \
+  | curl -X POST -d @- https://hooks.slack.com/services/...
+
+# Log verdicts to a file for audit
+canary-gate evaluate -c canary.yaml -l app.log -f json \
+  >> /var/log/canary-verdicts.jsonl
+```
+
+It fits naturally into a polling loop -- the same pattern as a
+health check:
+
+```bash
+# Wait for the canary to either pass or fail
+while true; do
+    canary-gate evaluate -c canary.yaml -l app.log
+    rc=$?
+    [ $rc -eq 0 ] && echo "promote" && break
+    [ $rc -eq 2 ] && echo "rollback" && break
+    sleep 30  # hold -- check again
 done
-
-# CI gate -- fail the pipeline if the canary isn't healthy
-- name: canary check
-  run: canary-gate evaluate -c canary.yaml -l canary.log
 ```
 
-The health definition lives in a YAML file, version-controlled next to
-your application. The tool reads logs, applies rules, and gets out of
-the way. No daemon, no cluster dependency, no SDK integration.
+It slots into CI the same way tests do -- a step that either
+passes or doesn't:
+
+```yaml
+# GitHub Actions
+- name: canary health gate
+  run: canary-gate evaluate -c canary.yaml -l canary.log
+
+# GitLab CI
+canary_check:
+  script: canary-gate evaluate -c canary.yaml -l canary.log
+  allow_failure: false
+```
+
+The health definition is a YAML file, version-controlled next to
+your application code. The tool reads logs, applies rules, prints
+a result. No daemon, no cluster dependency, no SDK integration.
+It's a filter -- log lines go in, a verdict comes out.
 
 ## Quickstart
 
