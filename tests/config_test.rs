@@ -147,3 +147,106 @@ tests:
     let result = parse_config(yaml);
     assert!(result.is_err());
 }
+
+#[test]
+fn invalid_regex_fails_validation() {
+    let yaml = r#"
+logging:
+  events:
+    - type: bad_regex
+      level: error
+      match:
+        any:
+          - regex: "[invalid(regex"
+
+tests:
+  - name: test1
+    then:
+      - event_present:
+          type: bad_regex
+"#;
+    let result = parse_config(yaml);
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("invalid regex"),
+        "Expected 'invalid regex', got: {}",
+        err
+    );
+}
+
+#[test]
+fn zero_min_cycles_fails_validation() {
+    let yaml = r#"
+recommendation:
+  promote:
+    require_min_cycles: 0
+    require_consecutive_passes: 2
+
+tests:
+  - name: test1
+    then:
+      - event_present:
+          type: foo
+"#;
+    let result = parse_config(yaml);
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("require_min_cycles"),
+        "Expected 'require_min_cycles', got: {}",
+        err
+    );
+}
+
+#[test]
+fn zero_consecutive_passes_fails_validation() {
+    let yaml = r#"
+recommendation:
+  promote:
+    require_min_cycles: 5
+    require_consecutive_passes: 0
+
+tests:
+  - name: test1
+    then:
+      - event_present:
+          type: foo
+"#;
+    let result = parse_config(yaml);
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("require_consecutive_passes"),
+        "Expected 'require_consecutive_passes', got: {}",
+        err
+    );
+}
+
+#[test]
+fn empty_match_rule_fails_validation() {
+    let yaml = r#"
+logging:
+  events:
+    - type: empty_match
+      level: info
+      match:
+        any: []
+        all: []
+        none: []
+
+tests:
+  - name: test1
+    then:
+      - event_present:
+          type: empty_match
+"#;
+    let result = parse_config(yaml);
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("match rule"),
+        "Expected 'match rule', got: {}",
+        err
+    );
+}

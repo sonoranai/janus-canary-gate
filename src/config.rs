@@ -436,6 +436,26 @@ fn validate_config(config: &Config) -> Result<()> {
         }
     }
 
+    // Validate regex patterns in event match rules
+    for event in &config.logging.events {
+        for condition in event
+            .match_rule
+            .any
+            .iter()
+            .chain(event.match_rule.all.iter())
+            .chain(event.match_rule.none.iter())
+        {
+            if let Some(ref pattern) = condition.regex {
+                regex::Regex::new(pattern).map_err(|e| {
+                    Error::Config(format!(
+                        "event '{}' has invalid regex '{}': {}",
+                        event.event_type, pattern, e
+                    ))
+                })?;
+            }
+        }
+    }
+
     // Validate recommendation thresholds
     if config.recommendation.promote.require_min_cycles == 0 {
         return Err(Error::Config(

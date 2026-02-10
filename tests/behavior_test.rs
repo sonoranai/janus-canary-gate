@@ -262,3 +262,50 @@ fn rate_greater_than_operator() {
     let result = evaluate_tests(&[test], &events);
     assert_eq!(result[0].result, TestResult::Pass);
 }
+
+#[test]
+fn rate_less_than_or_equal_at_boundary() {
+    let events = vec![
+        make_event("http_5xx", EventLevel::Error),
+        make_event("http_5xx", EventLevel::Error),
+    ];
+    let test = make_test(
+        "error_rate_lte",
+        vec![TestAssertion {
+            event_present: None,
+            event_absent: None,
+            rate: Some(RateAssertion {
+                event_type: "http_5xx".to_string(),
+                threshold: Some(2.0),
+                operator: Some(RateOperator::LessThanOrEqual),
+            }),
+        }],
+    );
+
+    let result = evaluate_tests(&[test], &events);
+    assert_eq!(result[0].result, TestResult::Pass);
+}
+
+#[test]
+fn rate_greater_than_or_equal_at_boundary() {
+    let events = vec![
+        make_event("request", EventLevel::Info),
+        make_event("request", EventLevel::Info),
+        make_event("request", EventLevel::Info),
+    ];
+    let test = make_test(
+        "request_rate_gte",
+        vec![TestAssertion {
+            event_present: None,
+            event_absent: None,
+            rate: Some(RateAssertion {
+                event_type: "request".to_string(),
+                threshold: Some(3.0),
+                operator: Some(RateOperator::GreaterThanOrEqual),
+            }),
+        }],
+    );
+
+    let result = evaluate_tests(&[test], &events);
+    assert_eq!(result[0].result, TestResult::Pass);
+}

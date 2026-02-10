@@ -72,56 +72,26 @@ async fn health(State(state): State<SharedState>) -> Json<HealthResponse> {
 }
 
 async fn current_evaluation(State(state): State<SharedState>) -> Response {
-    let db = state.db.lock().unwrap();
+    let db = match state.db.lock() {
+        Ok(db) => db,
+        Err(_) => return internal_error("database lock poisoned"),
+    };
     match db.get_current_evaluation() {
-        Ok(Some(eval)) => Json(serde_json::to_value(eval).unwrap()).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: ErrorDetail {
-                    code: "not_found".to_string(),
-                    message: "no evaluations found".to_string(),
-                },
-            }),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: ErrorDetail {
-                    code: "internal_error".to_string(),
-                    message: e.to_string(),
-                },
-            }),
-        )
-            .into_response(),
+        Ok(Some(eval)) => json_response(eval),
+        Ok(None) => not_found("no evaluations found"),
+        Err(e) => internal_error(&e.to_string()),
     }
 }
 
 async fn get_evaluation(State(state): State<SharedState>, Path(id): Path<i64>) -> Response {
-    let db = state.db.lock().unwrap();
+    let db = match state.db.lock() {
+        Ok(db) => db,
+        Err(_) => return internal_error("database lock poisoned"),
+    };
     match db.get_evaluation(id) {
-        Ok(Some(eval)) => Json(serde_json::to_value(eval).unwrap()).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: ErrorDetail {
-                    code: "not_found".to_string(),
-                    message: format!("evaluation {} not found", id),
-                },
-            }),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: ErrorDetail {
-                    code: "internal_error".to_string(),
-                    message: e.to_string(),
-                },
-            }),
-        )
-            .into_response(),
+        Ok(Some(eval)) => json_response(eval),
+        Ok(None) => not_found(&format!("evaluation {} not found", id)),
+        Err(e) => internal_error(&e.to_string()),
     }
 }
 
@@ -129,7 +99,10 @@ async fn list_evaluations(
     State(state): State<SharedState>,
     Query(params): Query<PaginationParams>,
 ) -> Response {
-    let db = state.db.lock().unwrap();
+    let db = match state.db.lock() {
+        Ok(db) => db,
+        Err(_) => return internal_error("database lock poisoned"),
+    };
     let limit = params.limit.unwrap_or(20);
 
     match db.query_history(
@@ -138,18 +111,42 @@ async fn list_evaluations(
         params.since.as_deref(),
         limit,
     ) {
-        Ok(evals) => Json(serde_json::to_value(evals).unwrap()).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: ErrorDetail {
-                    code: "internal_error".to_string(),
-                    message: e.to_string(),
-                },
-            }),
-        )
-            .into_response(),
+        Ok(evals) => json_response(evals),
+        Err(e) => internal_error(&e.to_string()),
     }
+}
+
+fn json_response(value: impl Serialize) -> Response {
+    match serde_json::to_value(value) {
+        Ok(json) => Json(json).into_response(),
+        Err(e) => internal_error(&format!("serialization error: {}", e)),
+    }
+}
+
+fn not_found(message: &str) -> Response {
+    (
+        StatusCode::NOT_FOUND,
+        Json(ErrorResponse {
+            error: ErrorDetail {
+                code: "not_found".to_string(),
+                message: message.to_string(),
+            },
+        }),
+    )
+        .into_response()
+}
+
+fn internal_error(message: &str) -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ErrorResponse {
+            error: ErrorDetail {
+                code: "internal_error".to_string(),
+                message: message.to_string(),
+            },
+        }),
+    )
+        .into_response()
 }
 
 async fn metrics() -> impl IntoResponse {

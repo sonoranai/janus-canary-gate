@@ -1,7 +1,16 @@
-use canary_gate::classification::{classify_line, classify_stream};
+use canary_gate::classification::{classify_line, classify_stream, CompiledRules};
 use canary_gate::config::*;
 use canary_gate::events::fingerprint;
 use canary_gate::ingestion::RawLogLine;
+
+/// Helper to classify with pre-compiled rules.
+fn classify(
+    line: &RawLogLine,
+    rules: &[EventConfig],
+) -> Option<canary_gate::events::CanonicalEvent> {
+    let compiled = CompiledRules::new(rules);
+    classify_line(line, rules, &compiled)
+}
 
 fn make_line(content: &str) -> RawLogLine {
     RawLogLine {
@@ -58,7 +67,7 @@ fn panic_rule() -> EventConfig {
 fn classify_matching_line() {
     let rules = vec![grpc_rule()];
     let line = make_line("2024-01-15 INFO gRPC server listening on 0.0.0.0:50051");
-    let event = classify_line(&line, &rules);
+    let event = classify(&line, &rules);
     assert!(event.is_some());
     let event = event.unwrap();
     assert_eq!(event.event_type, "grpc_server_started");
@@ -69,7 +78,7 @@ fn classify_matching_line() {
 fn classify_nonmatching_line() {
     let rules = vec![grpc_rule()];
     let line = make_line("2024-01-15 INFO Loading configuration");
-    let event = classify_line(&line, &rules);
+    let event = classify(&line, &rules);
     assert!(event.is_none());
 }
 
@@ -90,7 +99,7 @@ fn first_match_wins() {
     };
     let rules = vec![broad_rule, panic_rule()];
     let line = make_line("panic: something went wrong");
-    let event = classify_line(&line, &rules).unwrap();
+    let event = classify(&line, &rules).unwrap();
     assert_eq!(event.event_type, "broad_error");
 }
 
@@ -135,7 +144,7 @@ fn any_combinator_matches_any_condition() {
     let rules = vec![grpc_rule()];
     // Should match second condition
     let line = make_line("Started gRPC server on port 50051");
-    let event = classify_line(&line, &rules);
+    let event = classify(&line, &rules);
     assert!(event.is_some());
 }
 
@@ -162,11 +171,11 @@ fn all_combinator_requires_all_conditions() {
 
     // Both conditions present
     let line1 = make_line("Service ready, accepting connections");
-    assert!(classify_line(&line1, &[rule.clone()]).is_some());
+    assert!(classify(&line1, &[rule.clone()]).is_some());
 
     // Only one condition present — "accepting" is not in this line
     let line2 = make_line("Service ready, but still initializing");
-    assert!(classify_line(&line2, &[rule.clone()]).is_none());
+    assert!(classify(&line2, &[rule.clone()]).is_none());
 }
 
 #[test]
@@ -189,11 +198,11 @@ fn none_combinator_excludes_matching() {
 
     // Matches 'any' but not excluded by 'none'
     let line1 = make_line("starting service");
-    assert!(classify_line(&line1, &[rule.clone()]).is_some());
+    assert!(classify(&line1, &[rule.clone()]).is_some());
 
     // Matches 'any' but also matches 'none' exclusion
     let line2 = make_line("starting service with error");
-    assert!(classify_line(&line2, &[rule]).is_none());
+    assert!(classify(&line2, &[rule]).is_none());
 }
 
 #[test]
@@ -212,8 +221,8 @@ fn regex_match_condition() {
     };
 
     let line1 = make_line("request completed status=500 method=GET");
-    assert!(classify_line(&line1, &[rule.clone()]).is_some());
+    assert!(classify(&line1, &[rule.clone()]).is_some());
 
     let line2 = make_line("request completed status=200 method=GET");
-    assert!(classify_line(&line2, &[rule]).is_none());
+    assert!(classify(&line2, &[rule]).is_none());
 }
