@@ -44,6 +44,54 @@ Log File ──> Ingestion ──> Classification ──> Behavior Tests ──>
 - **Deterministic** — same inputs always produce the same outputs
 - **Human-in-the-loop** — engine produces recommendations, humans take final action
 
+## How canary-gate Compares
+
+canary-gate is a log-first behavioral test engine for canary deployments — the only open-source tool that evaluates deployment health by analyzing application logs alongside Prometheus metrics.
+
+### Feature Comparison
+
+| Capability | canary-gate | Flagger | Argo Rollouts | Kayenta |
+|---|---|---|---|---|
+| Log-based behavioral tests | Yes (core) | No | No | No |
+| Prometheus metrics | Yes | Yes | Yes | Yes |
+| Statistical analysis (Mann-Whitney) | Yes | No | No | Yes (custom) |
+| Standalone binary | Yes | No (K8s only) | No (K8s only) | No (Spinnaker) |
+| Webhook provider for Argo/Flagger | Yes | N/A | N/A | N/A |
+| K8s CRD operator | Yes (optional) | Yes (core) | Yes (core) | No |
+| Hard/soft severity state machine | Yes | No | No | No |
+| SQLite audit trail | Yes | No | No | No |
+| YAML test packs | Yes | No | No | No |
+| TUI dashboard | Yes | No | No | No |
+
+### Key Differentiators
+
+**Log-first analysis** — While existing tools operate exclusively on numeric metrics, canary-gate can classify and evaluate application log events using YAML-configured rules. Logs are often the earliest signal that a deployment is unhealthy.
+
+**Standalone & composable** — Works as a standalone CLI/binary or as a webhook provider that plugs into existing Argo Rollouts / Flagger workflows. No Kubernetes dependency required for core functionality.
+
+**Behavioral test framework** — Tests are expressed as behavioral assertions (`event_present`, `event_absent`, rate thresholds) with hard/soft severity levels, providing a structured way to define what "healthy" means for your application.
+
+### Composition with Existing Tools
+
+```
+┌─────────────────────────────────────────────────────┐
+│              Argo Rollouts / Flagger                │
+│                                                      │
+│   AnalysisTemplate:                                  │
+│     webhook: canary-gate/api/v1/webhooks/argo       │
+└──────────────────────┬───────────────────────────────┘
+                       │ POST
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│                   canary-gate                        │
+│                                                      │
+│   Logs ──> Classification ──> Behavioral Tests ──┐  │
+│                                                   ├──> Verdict
+│   Prometheus ──> Metrics Queries ────────────────┘  │
+│                  Statistical Analysis                │
+└─────────────────────────────────────────────────────┘
+```
+
 ## Configuration
 
 See [config/example.yaml](config/example.yaml) for a full configuration reference.

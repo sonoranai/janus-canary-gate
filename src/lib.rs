@@ -8,6 +8,9 @@ pub mod error;
 pub mod events;
 pub mod ingestion;
 pub mod metrics;
+#[cfg(feature = "operator")]
+pub mod operator;
 pub mod recommendation;
+pub mod stats;
 pub mod tui;
 pub mod verdict;

@@ -5,12 +5,13 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-use canary_gate::behavior::evaluate_tests;
+use canary_gate::behavior::{evaluate_metrics_queries, evaluate_tests};
 use canary_gate::classification::classify_stream;
 use canary_gate::cli::{exit_codes, Cli, Command, OutputFormat};
-use canary_gate::config::load_config;
+use canary_gate::config::{load_config, MetricsSourceConfig};
 use canary_gate::db::Database;
 use canary_gate::ingestion::LogReader;
+use canary_gate::metrics::MetricsSource;
 use canary_gate::recommendation::CycleTracker;
 use canary_gate::verdict::Verdict;
 
@@ -30,7 +31,7 @@ async fn main() -> Result<()> {
             config,
             log,
             format,
-        } => cmd_evaluate(&config, &log, &format)?,
+        } => cmd_evaluate(&config, &log, &format).await?,
 
         Command::Validate { config } => cmd_validate(&config)?,
 
@@ -62,7 +63,7 @@ async fn main() -> Result<()> {
     std::process::exit(exit_code);
 }
 
-fn cmd_evaluate(config_path: &Path, log_path: &Path, format: &OutputFormat) -> Result<i32> {
+async fn cmd_evaluate(config_path: &Path, log_path: &Path, format: &OutputFormat) -> Result<i32> {
     let config = load_config(config_path)
         .with_context(|| format!("loading config from {}", config_path.display()))?;
 
@@ -72,10 +73,17 @@ fn cmd_evaluate(config_path: &Path, log_path: &Path, format: &OutputFormat) -> R
         .with_context(|| format!("reading log file {}", log_path.display()))?;
 
     let events = classify_stream(&lines, &config.logging.events);
-    let evaluations = evaluate_tests(&config.tests, &events);
+    let mut evaluations = evaluate_tests(&config.tests, &events);
+
+    // Query metrics and merge results if configured
+    let metrics_test_configs = query_and_evaluate_metrics(&config.metrics, &mut evaluations).await;
+
+    // Build combined test configs for the cycle tracker (log tests + metrics tests)
+    let mut all_test_configs: Vec<_> = config.tests.clone();
+    all_test_configs.extend(metrics_test_configs);
 
     let mut tracker = CycleTracker::new();
-    tracker.record_cycle(&config.tests, &evaluations, &config.recommendation);
+    tracker.record_cycle(&all_test_configs, &evaluations, &config.recommendation);
 
     let verdict = Verdict::from_tracker(&tracker);
 
@@ -89,6 +97,47 @@ fn cmd_evaluate(config_path: &Path, log_path: &Path, format: &OutputFormat) -> R
     }
 
     Ok(verdict.exit_code())
+}
+
+/// Query Prometheus metrics and evaluate them, appending results to evaluations.
+/// Returns the synthetic TestConfig entries for the metrics queries.
+async fn query_and_evaluate_metrics(
+    metrics_config: &Option<MetricsSourceConfig>,
+    evaluations: &mut Vec<canary_gate::behavior::TestEvaluation>,
+) -> Vec<canary_gate::config::TestConfig> {
+    let metrics_cfg = match metrics_config {
+        Some(cfg) if !cfg.queries.is_empty() => cfg,
+        _ => return vec![],
+    };
+
+    let source = canary_gate::metrics::prometheus::PrometheusSource::new(&metrics_cfg.endpoint);
+
+    let mut metric_results = Vec::new();
+    for query in &metrics_cfg.queries {
+        match source.query(&query.query).await {
+            Ok(mut results) => {
+                // Tag results with the query name so evaluate_metrics_queries can match them
+                for r in &mut results {
+                    r.name = query.name.clone();
+                }
+                metric_results.extend(results);
+            }
+            Err(e) => {
+                tracing::warn!("Prometheus query '{}' failed: {}", query.name, e);
+                // Missing results → Unknown (handled by evaluate_metrics_queries)
+            }
+        }
+    }
+
+    let metrics_evaluations = evaluate_metrics_queries(&metrics_cfg.queries, &metric_results);
+    let metrics_test_configs: Vec<_> = metrics_cfg
+        .queries
+        .iter()
+        .map(|q| q.to_test_config())
+        .collect();
+
+    evaluations.extend(metrics_evaluations);
+    metrics_test_configs
 }
 
 fn cmd_validate(config_path: &Path) -> Result<i32> {
@@ -122,6 +171,8 @@ async fn cmd_watch(
             db: Mutex::new(db),
             start_time: std::time::Instant::now(),
             version: env!("CARGO_PKG_VERSION").to_string(),
+            config: Some(_config.clone()),
+            last_verdict: Mutex::new(None),
         });
 
         let app = canary_gate::api::router(state);

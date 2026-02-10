@@ -1,6 +1,8 @@
 use canary_gate::behavior::*;
 use canary_gate::config::*;
 use canary_gate::events::CanonicalEvent;
+use canary_gate::metrics::MetricResult;
+use std::collections::HashMap;
 
 fn make_event(event_type: &str, level: EventLevel) -> CanonicalEvent {
     CanonicalEvent {
@@ -308,4 +310,128 @@ fn rate_greater_than_or_equal_at_boundary() {
 
     let result = evaluate_tests(&[test], &events);
     assert_eq!(result[0].result, TestResult::Pass);
+}
+
+// --- Metrics evaluation tests ---
+
+fn make_metric(name: &str, value: f64) -> MetricResult {
+    MetricResult {
+        name: name.to_string(),
+        value,
+        labels: HashMap::new(),
+    }
+}
+
+fn make_metrics_query(name: &str, threshold: f64, operator: RateOperator) -> MetricsQuery {
+    MetricsQuery {
+        name: name.to_string(),
+        query: format!("rate({}[5m])", name),
+        threshold: Some(threshold),
+        operator: Some(operator),
+        severity: FailSeverity::Hard,
+    }
+}
+
+#[test]
+fn metrics_below_threshold_passes() {
+    let queries = vec![make_metrics_query(
+        "error_rate",
+        0.05,
+        RateOperator::LessThan,
+    )];
+    let results = vec![make_metric("error_rate", 0.01)];
+
+    let evals = evaluate_metrics_queries(&queries, &results);
+    assert_eq!(evals.len(), 1);
+    assert_eq!(evals[0].test_name, "metrics:error_rate");
+    assert_eq!(evals[0].result, TestResult::Pass);
+}
+
+#[test]
+fn metrics_above_threshold_fails() {
+    let queries = vec![make_metrics_query(
+        "error_rate",
+        0.05,
+        RateOperator::LessThan,
+    )];
+    let results = vec![make_metric("error_rate", 0.10)];
+
+    let evals = evaluate_metrics_queries(&queries, &results);
+    assert_eq!(evals[0].result, TestResult::Fail);
+}
+
+#[test]
+fn metrics_missing_results_unknown() {
+    let queries = vec![make_metrics_query(
+        "error_rate",
+        0.05,
+        RateOperator::LessThan,
+    )];
+    let results: Vec<MetricResult> = vec![];
+
+    let evals = evaluate_metrics_queries(&queries, &results);
+    assert_eq!(evals[0].result, TestResult::Unknown);
+}
+
+#[test]
+fn metrics_no_threshold_unknown() {
+    let queries = vec![MetricsQuery {
+        name: "error_rate".to_string(),
+        query: "rate(errors[5m])".to_string(),
+        threshold: None,
+        operator: None,
+        severity: FailSeverity::Hard,
+    }];
+    let results = vec![make_metric("error_rate", 0.01)];
+
+    let evals = evaluate_metrics_queries(&queries, &results);
+    assert_eq!(evals[0].result, TestResult::Unknown);
+}
+
+#[test]
+fn metrics_multiple_results_worst_case_less_than() {
+    // For LessThan, worst case is the max value
+    let queries = vec![make_metrics_query(
+        "error_rate",
+        0.05,
+        RateOperator::LessThan,
+    )];
+    let results = vec![
+        make_metric("error_rate", 0.01),
+        make_metric("error_rate", 0.03),
+        make_metric("error_rate", 0.10), // This breaches threshold
+    ];
+
+    let evals = evaluate_metrics_queries(&queries, &results);
+    assert_eq!(evals[0].result, TestResult::Fail);
+}
+
+#[test]
+fn metrics_multiple_results_worst_case_greater_than() {
+    // For GreaterThan, worst case is the min value
+    let queries = vec![make_metrics_query(
+        "throughput",
+        100.0,
+        RateOperator::GreaterThan,
+    )];
+    let results = vec![
+        make_metric("throughput", 150.0),
+        make_metric("throughput", 80.0), // This fails threshold
+    ];
+
+    let evals = evaluate_metrics_queries(&queries, &results);
+    assert_eq!(evals[0].result, TestResult::Fail);
+}
+
+#[test]
+fn metrics_greater_than_or_equal_at_boundary() {
+    let queries = vec![make_metrics_query(
+        "throughput",
+        100.0,
+        RateOperator::GreaterThanOrEqual,
+    )];
+    let results = vec![make_metric("throughput", 100.0)];
+
+    let evals = evaluate_metrics_queries(&queries, &results);
+    assert_eq!(evals[0].result, TestResult::Pass);
 }

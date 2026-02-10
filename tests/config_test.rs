@@ -43,8 +43,8 @@ fn invalid_missing_tests_fails() {
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(
-        err.contains("at least one test or pack"),
-        "Expected 'at least one test or pack', got: {}",
+        err.contains("at least one test, pack, metrics query, or comparison"),
+        "Expected 'at least one test, pack, metrics query, or comparison', got: {}",
         err
     );
 }

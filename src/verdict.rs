@@ -10,6 +10,10 @@ pub struct Verdict {
     pub consecutive_passes: u32,
     pub test_results: Vec<TestEvaluation>,
     pub reasoning: Vec<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub statistical_score: Option<crate::stats::scoring::AggregateScore>,
 }
 
 impl Verdict {
@@ -60,6 +64,7 @@ impl Verdict {
             consecutive_passes: tracker.consecutive_passes,
             test_results: latest_results,
             reasoning,
+            statistical_score: None,
         }
     }
 

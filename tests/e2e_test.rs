@@ -1,9 +1,11 @@
-use canary_gate::behavior::evaluate_tests;
+use canary_gate::behavior::{evaluate_metrics_queries, evaluate_tests};
 use canary_gate::classification::classify_stream;
 use canary_gate::config::load_config;
 use canary_gate::ingestion::LogReader;
+use canary_gate::metrics::MetricResult;
 use canary_gate::recommendation::{CycleTracker, Recommendation};
 use canary_gate::verdict::Verdict;
+use std::collections::HashMap;
 use std::path::Path;
 
 fn golden(scenario: &str, file: &str) -> std::path::PathBuf {
@@ -132,6 +134,7 @@ fn verdict_format_table_empty_results() {
         consecutive_passes: 0,
         test_results: vec![],
         reasoning: vec![],
+        statistical_score: None,
     };
     let table = verdict.format_table();
 
@@ -147,4 +150,76 @@ fn recommendation_display_format() {
     assert_eq!(Recommendation::Promote.to_string(), "RECOMMEND_PROMOTE");
     assert_eq!(Recommendation::Hold.to_string(), "RECOMMEND_HOLD");
     assert_eq!(Recommendation::Rollback.to_string(), "RECOMMEND_ROLLBACK");
+}
+
+/// Run the full evaluation pipeline for a golden scenario that includes metrics.
+/// Uses canned metric results instead of querying Prometheus.
+fn evaluate_scenario_with_metrics(scenario: &str, metric_results: Vec<MetricResult>) -> Verdict {
+    let config = load_config(&golden(scenario, "config.yaml")).unwrap();
+    let reader = LogReader::new(config.logging.format.clone());
+    let lines = reader.read_file(&golden(scenario, "canary.log")).unwrap();
+    let events = classify_stream(&lines, &config.logging.events);
+    let mut evaluations = evaluate_tests(&config.tests, &events);
+
+    // Evaluate metrics queries against canned results
+    let mut all_test_configs = config.tests.clone();
+    if let Some(ref metrics_cfg) = config.metrics {
+        let metrics_evals = evaluate_metrics_queries(&metrics_cfg.queries, &metric_results);
+        let metrics_test_configs: Vec<_> = metrics_cfg
+            .queries
+            .iter()
+            .map(|q| q.to_test_config())
+            .collect();
+        evaluations.extend(metrics_evals);
+        all_test_configs.extend(metrics_test_configs);
+    }
+
+    let mut tracker = CycleTracker::new();
+    tracker.record_cycle(&all_test_configs, &evaluations, &config.recommendation);
+    Verdict::from_tracker(&tracker)
+}
+
+#[test]
+fn e2e_metrics_promote_scenario() {
+    // Simulate Prometheus returning healthy metrics (below thresholds)
+    let metric_results = vec![
+        MetricResult {
+            name: "error_rate".to_string(),
+            value: 0.01,
+            labels: HashMap::new(),
+        },
+        MetricResult {
+            name: "latency_p99".to_string(),
+            value: 0.5,
+            labels: HashMap::new(),
+        },
+    ];
+    let verdict = evaluate_scenario_with_metrics("scenario_metrics_promote", metric_results);
+    let expected = load_expected("scenario_metrics_promote");
+
+    assert_eq!(verdict.recommendation, Recommendation::Promote);
+    assert_eq!(
+        verdict.total_cycles,
+        expected["total_cycles"].as_u64().unwrap() as u32
+    );
+    // Should have log tests + metrics tests
+    assert!(verdict.test_results.len() >= 4);
+}
+
+#[test]
+fn e2e_metrics_rollback_scenario() {
+    // Simulate Prometheus returning error_rate above threshold (0.10 > 0.05)
+    let metric_results = vec![MetricResult {
+        name: "error_rate".to_string(),
+        value: 0.10,
+        labels: HashMap::new(),
+    }];
+    let verdict = evaluate_scenario_with_metrics("scenario_metrics_rollback", metric_results);
+    let expected = load_expected("scenario_metrics_rollback");
+
+    assert_eq!(verdict.recommendation, Recommendation::Rollback);
+    assert_eq!(
+        verdict.total_cycles,
+        expected["total_cycles"].as_u64().unwrap() as u32
+    );
 }

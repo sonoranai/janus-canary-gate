@@ -30,6 +30,9 @@ pub struct Config {
 
     #[serde(default)]
     pub metrics: Option<MetricsSourceConfig>,
+
+    #[serde(default)]
+    pub analysis: Option<AnalysisConfig>,
 }
 
 /// Log stream boundary configuration.
@@ -70,6 +73,7 @@ fn default_lookback() -> String {
 
 /// Evaluation cycle parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct EvaluationConfig {
     #[serde(default = "default_interval")]
     pub interval: String,
@@ -109,6 +113,7 @@ fn default_max_duration() -> String {
 
 /// Logging configuration including event classification rules.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct LoggingConfig {
     #[serde(default = "default_log_format")]
     pub format: LogFormat,
@@ -128,6 +133,7 @@ impl Default for LoggingConfig {
 
 /// Log format for parsing.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum LogFormat {
     Auto,
@@ -141,6 +147,7 @@ fn default_log_format() -> LogFormat {
 
 /// Event classification rule from YAML.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct EventConfig {
     #[serde(rename = "type")]
     pub event_type: String,
@@ -153,6 +160,7 @@ pub struct EventConfig {
 
 /// Severity level for classified events.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum EventLevel {
     Debug,
@@ -164,6 +172,7 @@ pub enum EventLevel {
 
 /// Match combinators for event classification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct MatchRule {
     #[serde(default)]
     pub any: Vec<MatchCondition>,
@@ -177,6 +186,7 @@ pub struct MatchRule {
 
 /// A single match condition.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct MatchCondition {
     pub contains: Option<String>,
     pub regex: Option<String>,
@@ -184,6 +194,7 @@ pub struct MatchCondition {
 
 /// A behavior-driven test definition.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct TestConfig {
     pub name: String,
 
@@ -195,6 +206,7 @@ pub struct TestConfig {
 
 /// How a test failure affects the recommendation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FailSeverity {
     Hard,
@@ -207,6 +219,7 @@ fn default_fail_severity() -> FailSeverity {
 
 /// A test assertion (what to check in the event stream).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct TestAssertion {
     #[serde(default)]
     pub event_present: Option<EventPresentAssertion>,
@@ -219,6 +232,7 @@ pub struct TestAssertion {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct EventPresentAssertion {
     #[serde(rename = "type")]
     pub event_type: String,
@@ -228,12 +242,14 @@ pub struct EventPresentAssertion {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct EventAbsentAssertion {
     #[serde(rename = "type")]
     pub event_type: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct RateAssertion {
     #[serde(rename = "type")]
     pub event_type: String,
@@ -246,6 +262,7 @@ pub struct RateAssertion {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RateOperator {
     LessThan,
@@ -269,6 +286,7 @@ pub struct OverrideConfig {
 
 /// Recommendation engine configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct RecommendationConfig {
     #[serde(default)]
     pub promote: PromoteConfig,
@@ -291,6 +309,7 @@ impl Default for RecommendationConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct PromoteConfig {
     #[serde(default = "default_min_cycles")]
     pub require_min_cycles: u32,
@@ -313,6 +332,7 @@ fn default_consecutive_passes() -> u32 {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct RollbackConfig {
     #[serde(default = "default_soft_fail_consecutive")]
     pub soft_fail_consecutive_cycles: u32,
@@ -332,6 +352,7 @@ fn default_soft_fail_consecutive() -> u32 {
 
 /// Verdict bias for ambiguous situations.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum VerdictBias {
     HoldOnAmbiguity,
@@ -342,8 +363,66 @@ fn default_verdict_bias() -> VerdictBias {
     VerdictBias::HoldOnAmbiguity
 }
 
+/// Direction of metric change that is considered harmful.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum MetricDirection {
+    IncreaseBad,
+    DecreaseBad,
+    Either,
+}
+
+fn default_metric_direction() -> MetricDirection {
+    MetricDirection::IncreaseBad
+}
+
+fn default_weight() -> f64 {
+    1.0
+}
+
+/// A statistical comparison of baseline vs canary metric distributions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
+pub struct StatisticalComparison {
+    pub name: String,
+    pub baseline_query: String,
+    pub canary_query: String,
+
+    #[serde(default = "default_metric_direction")]
+    pub direction: MetricDirection,
+
+    #[serde(default)]
+    pub allowed_deviation: Option<f64>,
+
+    #[serde(default = "default_fail_severity")]
+    pub severity: FailSeverity,
+
+    #[serde(default = "default_weight")]
+    pub weight: f64,
+}
+
+/// Configuration for the statistical analysis engine.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalysisConfig {
+    #[serde(default = "default_pass_threshold")]
+    pub pass_score: f64,
+
+    #[serde(default = "default_marginal_threshold")]
+    pub marginal_score: f64,
+}
+
+fn default_pass_threshold() -> f64 {
+    95.0
+}
+
+fn default_marginal_threshold() -> f64 {
+    75.0
+}
+
 /// External metrics source configuration (e.g., Prometheus).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct MetricsSourceConfig {
     #[serde(rename = "type")]
     pub source_type: MetricsSourceType,
@@ -352,15 +431,20 @@ pub struct MetricsSourceConfig {
 
     #[serde(default)]
     pub queries: Vec<MetricsQuery>,
+
+    #[serde(default)]
+    pub comparisons: Vec<StatisticalComparison>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum MetricsSourceType {
     Prometheus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "operator", derive(schemars::JsonSchema))]
 pub struct MetricsQuery {
     pub name: String,
     pub query: String,
@@ -373,6 +457,18 @@ pub struct MetricsQuery {
 
     #[serde(default = "default_fail_severity")]
     pub severity: FailSeverity,
+}
+
+impl MetricsQuery {
+    /// Convert a metrics query into a synthetic TestConfig so the recommendation
+    /// engine can look up severity by test name.
+    pub fn to_test_config(&self) -> TestConfig {
+        TestConfig {
+            name: format!("metrics:{}", self.name),
+            severity: self.severity.clone(),
+            then: vec![], // Synthetic test — assertions are handled by metrics evaluation
+        }
+    }
 }
 
 /// Load and validate a configuration file.
@@ -395,10 +491,23 @@ pub fn parse_config(yaml: &str) -> Result<Config> {
 
 /// Validate the configuration for logical consistency.
 fn validate_config(config: &Config) -> Result<()> {
-    // Must have tests or packs defined
-    if config.tests.is_empty() && config.packs.is_empty() {
+    // Must have tests, packs, metrics queries, or comparisons defined
+    let has_metrics_queries = config
+        .metrics
+        .as_ref()
+        .is_some_and(|m| !m.queries.is_empty());
+    let has_comparisons = config
+        .metrics
+        .as_ref()
+        .is_some_and(|m| !m.comparisons.is_empty());
+    if config.tests.is_empty()
+        && config.packs.is_empty()
+        && !has_metrics_queries
+        && !has_comparisons
+    {
         return Err(Error::Config(
-            "configuration must define at least one test or pack".to_string(),
+            "configuration must define at least one test, pack, metrics query, or comparison"
+                .to_string(),
         ));
     }
 

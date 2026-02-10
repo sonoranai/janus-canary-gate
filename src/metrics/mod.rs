@@ -1,5 +1,8 @@
 pub mod prometheus;
 
+#[cfg(test)]
+pub mod mock;
+
 use crate::error::Result;
 
 /// A metric result from a query.

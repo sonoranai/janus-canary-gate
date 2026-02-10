@@ -1,0 +1,51 @@
+logging:
+  format: plaintext
+  events:
+    - type: grpc_server_started
+      level: info
+      match:
+        any:
+          - contains: "gRPC server listening"
+
+    - type: panic
+      level: fatal
+      match:
+        any:
+          - contains: "panic:"
+
+tests:
+  - name: service_starts
+    severity: hard
+    then:
+      - event_present:
+          type: grpc_server_started
+
+  - name: no_panics
+    severity: hard
+    then:
+      - event_absent:
+          type: panic
+
+metrics:
+  type: prometheus
+  endpoint: "http://localhost:9090"
+  queries:
+    - name: error_rate
+      query: "rate(http_errors_total[5m])"
+      threshold: 0.05
+      operator: less_than
+      severity: hard
+
+    - name: latency_p99
+      query: "histogram_quantile(0.99, rate(http_duration_seconds_bucket[5m]))"
+      threshold: 2.0
+      operator: less_than
+      severity: soft
+
+recommendation:
+  promote:
+    require_min_cycles: 1
+    require_consecutive_passes: 1
+  rollback:
+    soft_fail_consecutive_cycles: 3
+  bias: hold_on_ambiguity

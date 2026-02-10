@@ -1,5 +1,10 @@
-use crate::config::{TestAssertion, TestConfig};
+use crate::config::{MetricsQuery, RateOperator, StatisticalComparison, TestAssertion, TestConfig};
 use crate::events::CanonicalEvent;
+use crate::metrics::MetricResult;
+use crate::stats::mann_whitney::mann_whitney_u;
+use crate::stats::scoring::{
+    aggregate_score, classify, AggregateScore, MetricAnalysis, MetricClassification,
+};
 
 /// Result of a single test evaluation.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -120,5 +125,159 @@ fn evaluate_assertion(assertion: &TestAssertion, events: &[CanonicalEvent]) -> A
     AssertionResult {
         description: "empty assertion".to_string(),
         result: TestResult::Unknown,
+    }
+}
+
+/// Evaluate metrics queries against metric results from Prometheus.
+///
+/// Each `MetricsQuery` becomes a `TestEvaluation` named `"metrics:{query.name}"`.
+/// Missing results produce `TestResult::Unknown`.
+/// Multiple results per query use worst-case (highest) value for IncreaseBad-style
+/// comparisons and lowest for DecreaseBad, defaulting to worst-case for the operator.
+pub fn evaluate_metrics_queries(
+    queries: &[MetricsQuery],
+    results: &[MetricResult],
+) -> Vec<TestEvaluation> {
+    queries
+        .iter()
+        .map(|q| evaluate_metrics_query(q, results))
+        .collect()
+}
+
+/// Evaluate statistical comparisons of baseline vs canary metric distributions.
+///
+/// Each comparison runs a Mann-Whitney U test and classifies the result.
+/// Returns both per-comparison test evaluations and an aggregate score.
+pub fn evaluate_statistical_comparisons(
+    comparisons: &[StatisticalComparison],
+    value_pairs: &[(&[f64], &[f64])],
+) -> (Vec<TestEvaluation>, AggregateScore) {
+    let mut evaluations = Vec::new();
+    let mut analyses = Vec::new();
+
+    for (comp, (baseline, canary)) in comparisons.iter().zip(value_pairs.iter()) {
+        let mw_result = mann_whitney_u(baseline, canary);
+
+        let baseline_mean = if baseline.is_empty() {
+            0.0
+        } else {
+            baseline.iter().sum::<f64>() / baseline.len() as f64
+        };
+        let canary_mean = if canary.is_empty() {
+            0.0
+        } else {
+            canary.iter().sum::<f64>() / canary.len() as f64
+        };
+
+        let classification = classify(
+            mw_result.p_value,
+            &comp.direction,
+            baseline_mean,
+            canary_mean,
+        );
+
+        let test_result = match classification {
+            MetricClassification::Fail => TestResult::Fail,
+            _ => TestResult::Pass,
+        };
+
+        evaluations.push(TestEvaluation {
+            test_name: format!("stats:{}", comp.name),
+            result: test_result.clone(),
+            assertion_results: vec![AssertionResult {
+                description: format!(
+                    "Mann-Whitney U: p={:.4}, baseline_mean={:.4}, canary_mean={:.4}",
+                    mw_result.p_value, baseline_mean, canary_mean
+                ),
+                result: test_result,
+            }],
+        });
+
+        analyses.push(MetricAnalysis {
+            name: comp.name.clone(),
+            baseline_mean,
+            canary_mean,
+            p_value: mw_result.p_value,
+            direction: comp.direction.clone(),
+            classification,
+            weight: comp.weight,
+        });
+    }
+
+    let score = aggregate_score(&analyses);
+    (evaluations, score)
+}
+
+fn evaluate_metrics_query(query: &MetricsQuery, results: &[MetricResult]) -> TestEvaluation {
+    let test_name = format!("metrics:{}", query.name);
+
+    // Find all results matching this query (by query name)
+    let matching: Vec<&MetricResult> = results.iter().filter(|r| r.name == query.name).collect();
+
+    if matching.is_empty() {
+        return TestEvaluation {
+            test_name,
+            result: TestResult::Unknown,
+            assertion_results: vec![AssertionResult {
+                description: format!("metrics query '{}': no results", query.name),
+                result: TestResult::Unknown,
+            }],
+        };
+    }
+
+    let (threshold, operator) = match (&query.threshold, &query.operator) {
+        (Some(t), Some(op)) => (*t, op),
+        _ => {
+            return TestEvaluation {
+                test_name,
+                result: TestResult::Unknown,
+                assertion_results: vec![AssertionResult {
+                    description: format!(
+                        "metrics query '{}': no threshold/operator configured",
+                        query.name
+                    ),
+                    result: TestResult::Unknown,
+                }],
+            };
+        }
+    };
+
+    // Use the worst-case value across all matching results.
+    // For LessThan / LessThanOrEqual: worst case is the maximum value.
+    // For GreaterThan / GreaterThanOrEqual: worst case is the minimum value.
+    let worst_value = match operator {
+        RateOperator::LessThan | RateOperator::LessThanOrEqual => matching
+            .iter()
+            .map(|r| r.value)
+            .fold(f64::NEG_INFINITY, f64::max),
+        RateOperator::GreaterThan | RateOperator::GreaterThanOrEqual => matching
+            .iter()
+            .map(|r| r.value)
+            .fold(f64::INFINITY, f64::min),
+    };
+
+    let passes = match operator {
+        RateOperator::LessThan => worst_value < threshold,
+        RateOperator::GreaterThan => worst_value > threshold,
+        RateOperator::LessThanOrEqual => worst_value <= threshold,
+        RateOperator::GreaterThanOrEqual => worst_value >= threshold,
+    };
+
+    let result = if passes {
+        TestResult::Pass
+    } else {
+        TestResult::Fail
+    };
+
+    TestEvaluation {
+        test_name,
+        result: result.clone(),
+        assertion_results: vec![AssertionResult {
+            description: format!(
+                "metrics:{} value={:.4} {:?} {:.4}",
+                query.name, worst_value, operator, threshold
+            ),
+            result,
+        }],
     }
 }

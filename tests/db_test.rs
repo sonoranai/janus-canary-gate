@@ -9,6 +9,7 @@ fn make_verdict(recommendation: Recommendation, cycles: u32, passes: u32) -> Ver
         consecutive_passes: passes,
         test_results: vec![],
         reasoning: vec!["test reasoning".to_string()],
+        statistical_score: None,
     }
 }
 
@@ -186,6 +187,7 @@ fn reasoning_stored_as_json() {
         consecutive_passes: 3,
         test_results: vec![],
         reasoning: vec!["reason 1".to_string(), "reason 2".to_string()],
+        statistical_score: None,
     };
 
     let id = db.insert_evaluation("deploy-1", "hash", &verdict).unwrap();

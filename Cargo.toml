@@ -14,15 +14,28 @@ path = "src/lib.rs"
 name = "canary-gate"
 path = "src/main.rs"
 
+[[bin]]
+name = "canary-gate-operator"
+path = "src/operator/main.rs"
+required-features = ["operator"]
+
+[features]
+default = []
+operator = ["dep:kube", "dep:k8s-openapi", "dep:schemars", "dep:futures"]
+
 [dependencies]
 anyhow = "1"
 axum = "0.8"
 clap = { version = "4", features = ["derive"] }
 crossterm = "0.28"
+futures = { version = "0.3", optional = true }
+k8s-openapi = { version = "0.27", features = ["latest"], default-features = false, optional = true }
+kube = { version = "3", features = ["runtime", "derive"], optional = true }
 ratatui = "0.29"
 regex = "1"
 reqwest = { version = "0.12", features = ["json"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
+schemars = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
