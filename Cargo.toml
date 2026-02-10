@@ -1,0 +1,48 @@
+[package]
+name = "canary-gate"
+version = "0.1.0"
+edition = "2021"
+description = "Production canary health gate for Kubernetes deployments"
+license = "MIT"
+repository = "https://github.com/sonoranai/janus-canary-gate"
+
+[lib]
+name = "canary_gate"
+path = "src/lib.rs"
+
+[[bin]]
+name = "canary-gate"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+crossterm = "0.28"
+prometheus-client = "0.23"
+ratatui = "0.29"
+regex = "1"
+reqwest = { version = "0.12", features = ["json"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+insta = { version = "1", features = ["yaml"] }
+mockito = "1"
+predicates = "3"
+tempfile = "3"
+tower = { version = "0.5", features = ["util"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

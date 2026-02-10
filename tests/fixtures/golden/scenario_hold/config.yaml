@@ -1,0 +1,35 @@
+logging:
+  format: plaintext
+  events:
+    - type: grpc_server_started
+      level: info
+      match:
+        any:
+          - contains: "gRPC server listening"
+
+    - type: panic
+      level: fatal
+      match:
+        any:
+          - contains: "panic:"
+
+tests:
+  - name: service_starts
+    severity: hard
+    then:
+      - event_present:
+          type: grpc_server_started
+
+  - name: no_panics
+    severity: hard
+    then:
+      - event_absent:
+          type: panic
+
+recommendation:
+  promote:
+    require_min_cycles: 5
+    require_consecutive_passes: 2
+  rollback:
+    soft_fail_consecutive_cycles: 3
+  bias: hold_on_ambiguity

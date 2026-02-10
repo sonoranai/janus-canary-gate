@@ -1,0 +1,26 @@
+[metadata]
+domain = "code-quality"
+version = "1.0"
+last_updated = "2026-02-09"
+
+[formatting]
+tool = "rustfmt"
+config = ".rustfmt.toml"
+max_width = 100
+edition = "2021"
+
+[linting]
+tool = "clippy"
+config = ".clippy.toml"
+level = "pedantic-subset"
+rule = "cargo clippy -- -D warnings"
+
+[dependencies]
+tool = "cargo-deny"
+config = "deny.toml"
+checks = ["advisories", "licenses", "bans", "sources"]
+
+[style]
+naming = "snake_case for functions/variables, CamelCase for types"
+visibility = "Minimize pub exposure; prefer pub(crate) where possible"
+documentation = "Document public APIs; skip obvious internal functions"

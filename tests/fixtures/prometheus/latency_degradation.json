@@ -1,0 +1,15 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "__name__": "http_request_duration_seconds",
+          "quantile": "0.99"
+        },
+        "value": [1705312200, "4.25"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,37 @@
+logging:
+  events:
+    - type: grpc_server_started
+      level: info
+      match:
+        any:
+          - contains: "gRPC server listening"
+          - contains: "Started gRPC server"
+          - contains: "grpc listening"
+
+    - type: grpc_health_serving
+      level: info
+      match:
+        any:
+          - contains: "grpc.health.v1"
+          - contains: "health check: SERVING"
+
+    - type: grpc_unavailable
+      level: error
+      match:
+        any:
+          - contains: "UNAVAILABLE"
+          - contains: "grpc: server is not serving"
+
+tests:
+  - name: grpc_server_starts
+    severity: hard
+    then:
+      - event_present:
+          type: grpc_server_started
+          within: 30s
+
+  - name: no_grpc_unavailable
+    severity: soft
+    then:
+      - event_absent:
+          type: grpc_unavailable

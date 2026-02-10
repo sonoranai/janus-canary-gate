@@ -1,0 +1,52 @@
+logging:
+  format: auto
+  events:
+    - type: http_server_started
+      level: info
+      match:
+        any:
+          - contains: "HTTP server listening"
+          - contains: "Started HTTP server"
+
+    - type: panic
+      level: fatal
+      match:
+        any:
+          - contains: "panic:"
+          - contains: "fatal error"
+
+    - type: http_5xx
+      level: error
+      match:
+        any:
+          - contains: "HTTP 5"
+
+tests:
+  - name: http_starts
+    severity: hard
+    then:
+      - event_present:
+          type: http_server_started
+          within: 30s
+
+  - name: no_panics
+    severity: hard
+    then:
+      - event_absent:
+          type: panic
+
+  - name: acceptable_errors
+    severity: soft
+    then:
+      - rate:
+          type: http_5xx
+          threshold: 3.0
+          operator: less_than
+
+recommendation:
+  promote:
+    require_min_cycles: 3
+    require_consecutive_passes: 2
+  rollback:
+    soft_fail_consecutive_cycles: 3
+  bias: hold_on_ambiguity

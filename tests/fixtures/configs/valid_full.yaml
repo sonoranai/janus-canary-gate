@@ -1,0 +1,77 @@
+logstream:
+  start: beginning
+  lookback: 60s
+
+evaluation:
+  interval: 30s
+  lookback: 60s
+  min_cycles: 5
+  max_duration: 15m
+
+logging:
+  format: auto
+  events:
+    - type: grpc_server_started
+      level: info
+      match:
+        any:
+          - contains: "gRPC server listening"
+          - contains: "Started gRPC server"
+
+    - type: http_server_started
+      level: info
+      match:
+        any:
+          - contains: "HTTP server listening"
+          - contains: "Started HTTP server"
+
+    - type: panic
+      level: fatal
+      match:
+        any:
+          - contains: "panic:"
+          - contains: "fatal error"
+
+    - type: http_5xx
+      level: error
+      match:
+        any:
+          - contains: "HTTP 5"
+          - regex: "status=[5]\\d{2}"
+
+    - type: ready
+      level: info
+      match:
+        all:
+          - contains: "ready"
+          - contains: "accepting connections"
+
+tests:
+  - name: service_starts
+    severity: hard
+    then:
+      - event_present:
+          type: grpc_server_started
+          within: 30s
+
+  - name: no_panics
+    severity: hard
+    then:
+      - event_absent:
+          type: panic
+
+  - name: low_error_rate
+    severity: soft
+    then:
+      - rate:
+          type: http_5xx
+          threshold: 5.0
+          operator: less_than
+
+recommendation:
+  promote:
+    require_min_cycles: 5
+    require_consecutive_passes: 2
+  rollback:
+    soft_fail_consecutive_cycles: 3
+  bias: hold_on_ambiguity

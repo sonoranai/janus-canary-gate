@@ -1,0 +1,15 @@
+logging:
+  format: plaintext
+  events:
+    - type: started
+      level: info
+      match:
+        any:
+          - contains: "Server started"
+
+tests:
+  - name: service_starts
+    then:
+      - event_present:
+          type: started
+          within: 30s

@@ -1,0 +1,57 @@
+logging:
+  events:
+    - type: process_started
+      level: info
+      match:
+        any:
+          - contains: "Initializing"
+          - contains: "Starting"
+
+    - type: process_ready
+      level: info
+      match:
+        any:
+          - contains: "ready"
+          - contains: "listening"
+
+    - type: panic
+      level: fatal
+      match:
+        any:
+          - contains: "panic:"
+          - contains: "fatal error"
+          - contains: "SIGABRT"
+
+    - type: oom_killed
+      level: fatal
+      match:
+        any:
+          - contains: "OOMKilled"
+          - contains: "out of memory"
+
+tests:
+  - name: process_starts
+    severity: hard
+    then:
+      - event_present:
+          type: process_started
+          within: 30s
+
+  - name: process_ready
+    severity: hard
+    then:
+      - event_present:
+          type: process_ready
+          within: 60s
+
+  - name: no_panics
+    severity: hard
+    then:
+      - event_absent:
+          type: panic
+
+  - name: no_oom
+    severity: hard
+    then:
+      - event_absent:
+          type: oom_killed

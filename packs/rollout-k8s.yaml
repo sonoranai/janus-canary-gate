@@ -1,0 +1,55 @@
+logging:
+  events:
+    - type: pod_ready
+      level: info
+      match:
+        any:
+          - contains: "pod is ready"
+          - contains: "readiness probe succeeded"
+
+    - type: pod_crash_loop
+      level: fatal
+      match:
+        any:
+          - contains: "CrashLoopBackOff"
+          - contains: "Back-off restarting"
+
+    - type: image_pull_error
+      level: fatal
+      match:
+        any:
+          - contains: "ImagePullBackOff"
+          - contains: "ErrImagePull"
+
+    - type: liveness_fail
+      level: error
+      match:
+        any:
+          - contains: "liveness probe failed"
+          - contains: "Liveness probe errored"
+
+tests:
+  - name: pod_becomes_ready
+    severity: hard
+    then:
+      - event_present:
+          type: pod_ready
+          within: 120s
+
+  - name: no_crash_loop
+    severity: hard
+    then:
+      - event_absent:
+          type: pod_crash_loop
+
+  - name: no_image_pull_error
+    severity: hard
+    then:
+      - event_absent:
+          type: image_pull_error
+
+  - name: no_liveness_failures
+    severity: soft
+    then:
+      - event_absent:
+          type: liveness_fail

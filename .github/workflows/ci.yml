@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+        if: matrix.os == 'ubuntu-latest'
+
+      - name: License and advisory audit
+        run: cargo deny check
+        if: matrix.os == 'ubuntu-latest'
+
+      - name: Test
+        run: cargo test
+
+      - name: Build release
+        run: cargo build --release
+
+  finalized-docs:
+    name: Verify finalized docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check finalized plans unchanged
+        run: |
+          if [ -d "docs/plans/finalized" ]; then
+            git diff HEAD~1 --name-only docs/plans/finalized/ | while read -r file; do
+              if [ -n "$file" ]; then
+                echo "ERROR: Finalized plan modified: $file"
+                exit 1
+              fi
+            done
+          fi

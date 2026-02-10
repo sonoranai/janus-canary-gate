@@ -1,0 +1,31 @@
+[metadata]
+domain = "testing"
+version = "1.0"
+last_updated = "2026-02-09"
+
+[protocol]
+workflow = "TDD"
+description = "Write failing tests first, then implement until tests pass"
+fixture_only = true
+no_network = true
+no_wall_clock = true
+
+[fixtures]
+location = "tests/fixtures/"
+configs = "tests/fixtures/configs/"
+logs_plaintext = "tests/fixtures/logs/plaintext/"
+logs_json = "tests/fixtures/logs/json/"
+prometheus = "tests/fixtures/prometheus/"
+golden = "tests/fixtures/golden/"
+
+[tools]
+unit = "cargo test"
+integration = "assert_cmd"
+snapshots = "insta"
+http_mocks = "mockito"
+temp_dirs = "tempfile"
+
+[rules]
+determinism = "Same inputs must produce same outputs"
+no_flaky = "No test may depend on timing, ordering, or external state"
+golden_scenarios = "E2E tests use golden log + config + expected verdict triplets"

@@ -1,0 +1,3 @@
+this_is_not_valid:
+  - random_field: true
+  - another: "stuff"

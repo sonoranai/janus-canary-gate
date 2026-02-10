@@ -1,0 +1,14 @@
+logging:
+  format: invalid_format
+  events:
+    - type: started
+      level: info
+      match:
+        any:
+          - contains: "Server started"
+
+tests:
+  - name: service_starts
+    then:
+      - event_present:
+          type: started

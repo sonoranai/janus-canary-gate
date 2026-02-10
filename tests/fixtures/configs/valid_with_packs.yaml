@@ -1,0 +1,16 @@
+logging:
+  format: auto
+  events:
+    - type: started
+      level: info
+      match:
+        any:
+          - contains: "Server started"
+
+packs:
+  - runtime-basic
+  - grpc-server
+
+overrides:
+  http_5xx:
+    threshold: 2

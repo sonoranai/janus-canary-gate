@@ -1,0 +1,29 @@
+[metadata]
+domain = "tui-patterns"
+version = "1.0"
+last_updated = "2026-02-09"
+
+[framework]
+crate = "ratatui"
+backend = "crossterm"
+pattern = "elm-architecture"
+description = "State -> View -> Input -> Update -> State"
+
+[state_management]
+location = "src/tui/state.rs"
+rule = "All TUI state in a single AppState struct"
+immutable_render = "Render functions take &AppState (read-only)"
+
+[input_handling]
+location = "src/tui/input.rs"
+rule = "Keyboard input returns InputResult enum (Continue, Quit, Action)"
+debounce = "Poll with 100ms timeout"
+
+[widgets]
+location = "src/tui/widgets/"
+rule = "Each widget is a separate module with a render() function"
+signature = "fn render(frame: &mut Frame, area: Rect, state: &AppState)"
+
+[layout]
+rule = "Use Layout::default() with Constraint arrays"
+responsiveness = "Use Constraint::Percentage for flexible sizing"

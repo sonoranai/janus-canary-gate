@@ -1,0 +1,40 @@
+logging:
+  events:
+    - type: http_server_started
+      level: info
+      match:
+        any:
+          - contains: "HTTP server listening"
+          - contains: "Started HTTP server"
+          - contains: "http listening"
+
+    - type: http_5xx
+      level: error
+      match:
+        any:
+          - contains: "HTTP 5"
+          - regex: "status=[5]\\d{2}"
+
+    - type: http_health_ok
+      level: info
+      match:
+        any:
+          - contains: "/healthz"
+          - contains: "/health"
+          - contains: "health check: ok"
+
+tests:
+  - name: http_server_starts
+    severity: hard
+    then:
+      - event_present:
+          type: http_server_started
+          within: 30s
+
+  - name: low_5xx_rate
+    severity: soft
+    then:
+      - rate:
+          type: http_5xx
+          threshold: 5.0
+          operator: less_than

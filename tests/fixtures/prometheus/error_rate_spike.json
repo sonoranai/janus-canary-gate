@@ -1,0 +1,24 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "__name__": "http_errors_total",
+          "method": "GET",
+          "status": "500"
+        },
+        "value": [1705312200, "47"]
+      },
+      {
+        "metric": {
+          "__name__": "http_errors_total",
+          "method": "POST",
+          "status": "503"
+        },
+        "value": [1705312200, "23"]
+      }
+    ]
+  }
+}

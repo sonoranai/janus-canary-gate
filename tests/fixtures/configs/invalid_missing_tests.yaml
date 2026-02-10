@@ -1,0 +1,10 @@
+logging:
+  format: plaintext
+  events:
+    - type: started
+      level: info
+      match:
+        any:
+          - contains: "Server started"
+
+# No tests or packs defined — this should fail validation

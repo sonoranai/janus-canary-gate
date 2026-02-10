@@ -1,0 +1,31 @@
+[metadata]
+domain = "rust-cli"
+version = "1.0"
+last_updated = "2026-02-09"
+
+[project_structure]
+pattern = "lib-plus-bin"
+description = "lib.rs exports modules, main.rs handles CLI dispatch only"
+rationale = "Integration tests can import library types directly"
+
+[error_handling]
+library_crate = "thiserror"
+binary_crate = "anyhow"
+rule = "thiserror for typed errors in lib modules, anyhow for context in main"
+
+[arguments]
+crate = "clap"
+style = "derive"
+naming = "kebab-case for CLI flags, snake_case for Rust fields"
+
+[logging]
+crate = "tracing"
+format = "structured JSON in production, pretty in development"
+env_var = "RUST_LOG"
+
+[testing]
+tdd_required = true
+integration_crate = "assert_cmd"
+snapshot_crate = "insta"
+fixture_location = "tests/fixtures/"
+rule = "Every feature must be a failing test first"
