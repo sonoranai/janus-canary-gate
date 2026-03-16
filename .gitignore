@@ -5,3 +5,9 @@
 .DS_Store
 *.db
 *.sqlite
+.env
+.env.*
+*.pem
+*.key
+*.p12
+.claude/

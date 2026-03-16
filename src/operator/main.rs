@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
 
     let client = Client::try_default()
         .await
-        .expect("Failed to create Kubernetes client");
+        .map_err(|e| anyhow::anyhow!("failed to create Kubernetes client: {e}"))?;
 
     canary_gate::operator::controller::run(client).await?;
 

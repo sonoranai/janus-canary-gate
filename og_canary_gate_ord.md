@@ -2,7 +2,7 @@
 
 **Progressive Delivery Decision Engine**
 
-Version 1.0 | February 2026 | Jason Neill
+Version 1.0 | February 2026 | SonoranAI
 
 ---
 

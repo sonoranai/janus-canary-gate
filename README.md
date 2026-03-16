@@ -51,7 +51,7 @@ This also means self-hosted services outside of Kubernetes are first-class canar
 
 ```bash
 git clone https://github.com/sonoranai/janus-canary-gate.git
-cd canary-gate
+cd janus-canary-gate
 cargo build --release
 cp target/release/canary-gate /usr/local/bin/
 ```
@@ -384,6 +384,8 @@ metrics:
 
 Statistical comparison uses the Mann-Whitney U test — baseline vs. canary metric distributions, no assumptions about normality.
 
+> **TLS:** For non-localhost Prometheus endpoints, use `https://` to prevent metric queries from being transmitted in plaintext. In-cluster Prometheus often runs without TLS behind a network policy — verify your environment before relying on plain HTTP.
+
 <br>
 
 ---
@@ -416,6 +418,8 @@ canary-gate exposes webhook endpoints compatible with both Argo Rollouts and Fla
 **Argo Rollouts** — returns `{ recommendation, score, passed }`. Configure with `successCondition: "result.recommendation == 'promote'"`.
 
 **Flagger** — returns HTTP 200 for promote/hold, HTTP 400 for rollback. Follows the Flagger webhook contract directly.
+
+> **Security:** The API server binds to `127.0.0.1:8080` by default and does not include authentication middleware. In a Kubernetes pod, localhost is reachable from any container in the same network namespace. For production deployments, place the webhook endpoints behind a network policy or service mesh mTLS, or front with an authenticating reverse proxy.
 
 <br>
 

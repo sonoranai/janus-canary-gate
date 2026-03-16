@@ -78,6 +78,8 @@ recommendation:
   bias: hold_on_ambiguity
 
 # Optional: Prometheus metrics source
+# For non-localhost endpoints, use https:// to prevent metric queries
+# from being transmitted in plaintext across network boundaries.
 # metrics:
 #   type: prometheus
 #   endpoint: http://prometheus:9090
