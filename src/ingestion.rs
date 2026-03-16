@@ -1,5 +1,5 @@
 use std::io::BufRead;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::config::LogFormat;
 use crate::error::{Error, Result};
@@ -18,6 +18,9 @@ pub struct RawLogLine {
 
     /// Whether this line was detected as JSON.
     pub is_json: bool,
+
+    /// Source file path or identifier (e.g. "pod:name"). None for BufRead/API sources.
+    pub source: Option<String>,
 }
 
 /// Streaming log reader that processes lines without full buffering.
@@ -36,7 +39,43 @@ impl LogReader {
             Error::Ingestion(format!("failed to open log file {}: {}", path.display(), e))
         })?;
         let reader = std::io::BufReader::new(file);
-        self.read_lines(reader)
+        let mut lines = self.read_lines(reader)?;
+        let source = path.display().to_string();
+        for line in &mut lines {
+            line.source = Some(source.clone());
+        }
+        Ok(lines)
+    }
+
+    /// Read and merge log lines from multiple files, sorted by timestamp.
+    pub fn read_files(&self, paths: &[PathBuf]) -> Result<Vec<RawLogLine>> {
+        let mut all_lines = Vec::new();
+        for path in paths {
+            let lines = self.read_file(path)?;
+            all_lines.extend(lines);
+        }
+        all_lines.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+        Ok(all_lines)
+    }
+
+    /// Read log lines resolved from a `LogInput` (single file or directory).
+    pub fn read_input(&self, input: LogInput<'_>) -> Result<Vec<RawLogLine>> {
+        match input {
+            LogInput::SingleFile(path) => self.read_file(path),
+            LogInput::Directory { dir, pattern } => {
+                let paths = discover_log_files(dir, pattern)?;
+                if paths.is_empty() {
+                    return Err(Error::Ingestion(format!(
+                        "no log files found in {}{}",
+                        dir.display(),
+                        pattern
+                            .map(|p| format!(" matching '{}'", p))
+                            .unwrap_or_default()
+                    )));
+                }
+                self.read_files(&paths)
+            }
+        }
     }
 
     /// Read log lines from any BufRead source.
@@ -60,11 +99,67 @@ impl LogReader {
                 line_number: idx + 1,
                 timestamp,
                 is_json,
+                source: None,
             });
         }
 
         Ok(lines)
     }
+}
+
+/// Describes where to read log lines from.
+pub enum LogInput<'a> {
+    /// A single log file.
+    SingleFile(&'a Path),
+    /// All (or glob-filtered) files in a directory.
+    Directory {
+        dir: &'a Path,
+        pattern: Option<&'a str>,
+    },
+}
+
+/// Discover log files in a directory, optionally filtered by a glob pattern.
+///
+/// Returns a sorted list of regular files. Only scans the top level of the directory.
+pub fn discover_log_files(dir: &Path, pattern: Option<&str>) -> Result<Vec<PathBuf>> {
+    let compiled = pattern
+        .map(|p| {
+            glob::Pattern::new(p)
+                .map_err(|e| Error::Ingestion(format!("invalid glob pattern '{}': {}", p, e)))
+        })
+        .transpose()?;
+
+    let entries = std::fs::read_dir(dir).map_err(|e| {
+        Error::Ingestion(format!("failed to read directory {}: {}", dir.display(), e))
+    })?;
+
+    let mut paths = Vec::new();
+    for entry in entries {
+        let entry = entry
+            .map_err(|e| Error::Ingestion(format!("failed to read directory entry: {}", e)))?;
+        let path = entry.path();
+
+        // Only include regular files
+        if !path.is_file() {
+            continue;
+        }
+
+        // Apply glob filter against the file name
+        if let Some(ref pat) = compiled {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if !pat.matches(name) {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+        }
+
+        paths.push(path);
+    }
+
+    paths.sort();
+    Ok(paths)
 }
 
 /// Detect whether a line is JSON based on format config.

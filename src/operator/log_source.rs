@@ -39,6 +39,7 @@ pub async fn fetch_pod_logs(
                         line_number: global_line_number,
                         timestamp: None,
                         is_json,
+                        source: Some(format!("pod:{}", pod_name)),
                     });
                     global_line_number += 1;
                 }

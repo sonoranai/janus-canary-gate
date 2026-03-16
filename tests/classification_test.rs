@@ -18,6 +18,7 @@ fn make_line(content: &str) -> RawLogLine {
         line_number: 1,
         timestamp: Some("2024-01-15T10:30:00Z".to_string()),
         is_json: false,
+        source: None,
     }
 }
 

@@ -24,6 +24,14 @@ pub enum Command {
         #[arg(short, long)]
         log: Option<PathBuf>,
 
+        /// Path to a directory of log files to evaluate.
+        #[arg(long)]
+        log_dir: Option<PathBuf>,
+
+        /// Glob pattern to filter files in --log-dir (e.g. "webapp-*.log").
+        #[arg(long)]
+        r#match: Option<String>,
+
         /// Launch the interactive TUI dashboard.
         #[arg(long)]
         tui: bool,
@@ -43,9 +51,17 @@ pub enum Command {
         #[arg(short, long)]
         config: PathBuf,
 
-        /// Path to the log file to evaluate.
-        #[arg(short, long)]
-        log: PathBuf,
+        /// Path to a single log file to evaluate.
+        #[arg(short, long, group = "log_source")]
+        log: Option<PathBuf>,
+
+        /// Path to a directory of log files to evaluate.
+        #[arg(long, group = "log_source")]
+        log_dir: Option<PathBuf>,
+
+        /// Glob pattern to filter files in --log-dir (e.g. "webapp-*.log").
+        #[arg(long)]
+        r#match: Option<String>,
 
         /// Output format: json or table.
         #[arg(short, long, default_value = "table")]

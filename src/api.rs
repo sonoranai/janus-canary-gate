@@ -192,6 +192,7 @@ async fn evaluate(
             line_number: i + 1,
             timestamp: None,
             is_json: false,
+            source: None,
         })
         .collect();
 

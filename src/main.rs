@@ -10,7 +10,7 @@ use canary_gate::classification::classify_stream;
 use canary_gate::cli::{exit_codes, Cli, Command, OutputFormat};
 use canary_gate::config::{load_config, MetricsSourceConfig};
 use canary_gate::db::Database;
-use canary_gate::ingestion::LogReader;
+use canary_gate::ingestion::{LogInput, LogReader};
 use canary_gate::metrics::MetricsSource;
 use canary_gate::recommendation::CycleTracker;
 use canary_gate::verdict::Verdict;
@@ -30,18 +30,42 @@ async fn main() -> Result<()> {
         Command::Evaluate {
             config,
             log,
+            log_dir,
+            r#match,
             format,
-        } => cmd_evaluate(&config, &log, &format).await?,
+        } => {
+            cmd_evaluate(
+                &config,
+                log.as_deref(),
+                log_dir.as_deref(),
+                r#match.as_deref(),
+                &format,
+            )
+            .await?
+        }
 
         Command::Validate { config } => cmd_validate(&config)?,
 
         Command::Watch {
             config,
             log,
+            log_dir,
+            r#match,
             tui,
             api,
             api_addr,
-        } => cmd_watch(&config, log.as_deref(), tui, api, &api_addr).await?,
+        } => {
+            cmd_watch(
+                &config,
+                log.as_deref(),
+                log_dir.as_deref(),
+                r#match.as_deref(),
+                tui,
+                api,
+                &api_addr,
+            )
+            .await?
+        }
 
         Command::Explain { decision_id, db } => cmd_explain(&decision_id, &db)?,
 
@@ -63,14 +87,30 @@ async fn main() -> Result<()> {
     std::process::exit(exit_code);
 }
 
-async fn cmd_evaluate(config_path: &Path, log_path: &Path, format: &OutputFormat) -> Result<i32> {
+async fn cmd_evaluate(
+    config_path: &Path,
+    log: Option<&Path>,
+    log_dir: Option<&Path>,
+    pattern: Option<&str>,
+    format: &OutputFormat,
+) -> Result<i32> {
     let config = load_config(config_path)
         .with_context(|| format!("loading config from {}", config_path.display()))?;
 
+    if pattern.is_some() && log_dir.is_none() {
+        anyhow::bail!("--match requires --log-dir");
+    }
+
+    let input = match (log, log_dir) {
+        (Some(path), None) => LogInput::SingleFile(path),
+        (None, Some(dir)) => LogInput::Directory { dir, pattern },
+        _ => anyhow::bail!("exactly one of --log or --log-dir must be provided"),
+    };
+
     let reader = LogReader::new(config.logging.format.clone());
     let lines = reader
-        .read_file(log_path)
-        .with_context(|| format!("reading log file {}", log_path.display()))?;
+        .read_input(input)
+        .with_context(|| "reading log input")?;
 
     let events = classify_stream(&lines, &config.logging.events);
     let mut evaluations = evaluate_tests(&config.tests, &events);
@@ -156,6 +196,8 @@ fn cmd_validate(config_path: &Path) -> Result<i32> {
 async fn cmd_watch(
     config_path: &Path,
     _log_path: Option<&Path>,
+    _log_dir: Option<&Path>,
+    _pattern: Option<&str>,
     tui: bool,
     api: bool,
     api_addr: &str,

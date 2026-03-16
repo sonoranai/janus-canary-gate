@@ -122,3 +122,69 @@ fn nonexistent_file_returns_error() {
     let result = reader.read_file(Path::new("/nonexistent/file.log"));
     assert!(result.is_err());
 }
+
+#[test]
+fn read_file_populates_source() {
+    let reader = LogReader::new(LogFormat::Plaintext);
+    let path = fixture("plaintext/grpc_healthy_startup.log");
+    let lines = reader.read_file(&path).unwrap();
+    assert!(!lines.is_empty());
+    let expected = path.display().to_string();
+    for line in &lines {
+        assert_eq!(line.source.as_deref(), Some(expected.as_str()));
+    }
+}
+
+#[test]
+fn read_lines_has_no_source() {
+    let input = "2024-01-15T10:00:00Z hello\n2024-01-15T10:00:01Z world\n";
+    let reader = LogReader::new(LogFormat::Plaintext);
+    let lines = reader.read_lines(std::io::Cursor::new(input)).unwrap();
+    assert_eq!(lines.len(), 2);
+    for line in &lines {
+        assert!(line.source.is_none());
+    }
+}
+
+#[test]
+fn read_files_merges_multiple() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let file_a = dir.path().join("a.log");
+    let file_b = dir.path().join("b.log");
+    std::fs::write(&file_a, "2024-01-15T10:00:00Z line-a\n").unwrap();
+    std::fs::write(&file_b, "2024-01-15T10:00:01Z line-b\n").unwrap();
+
+    let reader = LogReader::new(LogFormat::Plaintext);
+    let lines = reader
+        .read_files(&[file_a.clone(), file_b.clone()])
+        .unwrap();
+
+    assert_eq!(lines.len(), 2);
+    assert_eq!(
+        lines[0].source.as_deref(),
+        Some(file_a.display().to_string().as_str())
+    );
+    assert_eq!(
+        lines[1].source.as_deref(),
+        Some(file_b.display().to_string().as_str())
+    );
+}
+
+#[test]
+fn read_files_sorts_by_timestamp() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // File a has a later timestamp, file b has an earlier one.
+    let file_a = dir.path().join("a.log");
+    let file_b = dir.path().join("b.log");
+    std::fs::write(&file_a, "2024-01-15T10:00:05Z late\n").unwrap();
+    std::fs::write(&file_b, "2024-01-15T10:00:01Z early\n").unwrap();
+
+    let reader = LogReader::new(LogFormat::Plaintext);
+    let lines = reader.read_files(&[file_a, file_b]).unwrap();
+
+    assert_eq!(lines.len(), 2);
+    assert!(lines[0].content.contains("early"));
+    assert!(lines[1].content.contains("late"));
+}

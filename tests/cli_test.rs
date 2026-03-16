@@ -46,12 +46,48 @@ fn cli_evaluate_requires_config() {
 }
 
 #[test]
-fn cli_evaluate_requires_log() {
+fn cli_evaluate_requires_log_source() {
+    // Neither --log nor --log-dir provided
     cmd()
         .args(["evaluate", "--config", "nonexistent.yaml"])
         .assert()
+        .failure();
+}
+
+#[test]
+fn cli_match_requires_log_dir() {
+    // Use a valid config so we get past config loading to the --match validation
+    let config = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/golden/scenario_promote/config.yaml");
+    cmd()
+        .args([
+            "evaluate",
+            "--config",
+            config.to_str().unwrap(),
+            "--log",
+            "some.log",
+            "--match",
+            "*.log",
+        ])
+        .assert()
         .failure()
-        .stderr(predicate::str::contains("--log"));
+        .stderr(predicate::str::contains("--match requires --log-dir"));
+}
+
+#[test]
+fn cli_evaluate_log_and_log_dir_mutually_exclusive() {
+    cmd()
+        .args([
+            "evaluate",
+            "--config",
+            "nonexistent.yaml",
+            "--log",
+            "some.log",
+            "--log-dir",
+            "/tmp",
+        ])
+        .assert()
+        .failure();
 }
 
 #[test]
