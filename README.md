@@ -1,10 +1,10 @@
-# canary-gate
+# janus-canary-gate
 
 <a href="#install"><img src="https://cdn.simpleicons.org/rust/DEA584" width="28" height="28" alt="Rust"></a>&nbsp;&nbsp;<a href="#architecture"><img src="https://cdn.simpleicons.org/sqlite" width="28" height="28" alt="SQLite"></a>&nbsp;&nbsp;<a href="#kubernetes-operator"><img src="https://cdn.simpleicons.org/kubernetes" width="28" height="28" alt="Kubernetes"></a>&nbsp;&nbsp;<a href="#prometheus-metrics"><img src="https://cdn.simpleicons.org/prometheus" width="28" height="28" alt="Prometheus"></a>&nbsp;&nbsp;<a href="#webhook-integration"><img src="https://cdn.simpleicons.org/argo/EF7B4D" width="28" height="28" alt="Argo"></a>&nbsp;&nbsp;<a href="https://www.anthropic.com/"><img src="https://cdn.simpleicons.org/anthropic" width="28" height="28" alt="Anthropic"></a>
 
 Canary deployment health checks without a metrics pipeline. A single binary that reads your application's log output, decides if the deploy is healthy, and exits with a code — promote, hold, or rollback. Works anywhere you can run a process: bare metal, VMs, CI pipelines, systemd units, shell scripts. Kubernetes supported, not required.
 
-When you do have Prometheus, canary-gate queries it too. And it exposes webhook endpoints compatible with Argo Rollouts and Flagger, so you can plug log-based analysis into an existing progressive delivery setup without replacing anything.
+When you do have Prometheus, Canary Gate queries it too. And it exposes webhook endpoints compatible with Argo Rollouts and Flagger, so you can plug log-based analysis into an existing progressive delivery setup without replacing anything.
 
 ---
 
@@ -21,7 +21,7 @@ When you do have Prometheus, canary-gate queries it too. And it exposes webhook 
 - [Prometheus Metrics](#prometheus-metrics)
 - [Webhook Integration](#webhook-integration)
 - [Kubernetes Operator](#kubernetes-operator)
-- [Where canary-gate Fits](#where-canary-gate-fits)
+- [Where Canary Gate Fits](#where-canary-gate-fits)
 - [Architecture](#architecture)
 - [Testing](#testing)
 
@@ -35,9 +35,9 @@ When you do have Prometheus, canary-gate queries it too. And it exposes webhook 
 
 Most canary analysis tools — Flagger, Argo Rollouts, Kayenta — need a running Prometheus to tell you whether a deploy is healthy. But when an engineer watches a deploy, they don't start with dashboards. They tail the logs. They look for `listening on port 8080` or `FATAL: connection refused` or a stack trace. Logs are the first signal that something is wrong, and they show up before error rate metrics have time to aggregate.
 
-canary-gate encodes that workflow. You write YAML that describes what "healthy" looks like — which log events should appear, which ones shouldn't, what rates are acceptable — and the tool checks your logs against those rules. No metrics infrastructure required.
+Canary Gate encodes that workflow. You write YAML that describes what "healthy" looks like — which log events should appear, which ones shouldn't, what rates are acceptable — and the tool checks your logs against those rules. No metrics infrastructure required.
 
-This also means self-hosted services outside of Kubernetes are first-class canary candidates, not afterthoughts. If the process produces logs, canary-gate can evaluate it.
+This also means self-hosted services outside of Kubernetes are first-class canary candidates, not afterthoughts. If the process produces logs, Canary Gate can evaluate it.
 
 <br>
 
@@ -347,7 +347,7 @@ Every verdict is stored in SQLite with full reasoning — classification results
 
 ### CI Integration
 
-canary-gate slots into CI the same way tests do — a step that either passes or doesn't:
+Canary Gate slots into CI the same way tests do — a step that either passes or doesn't:
 
 ```yaml
 # GitHub Actions
